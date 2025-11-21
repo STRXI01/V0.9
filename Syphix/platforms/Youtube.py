@@ -9,21 +9,8 @@ from pyrogram.types import Message
 from youtubesearchpython.__future__ import VideosSearch
 from Syphix.utils.database import is_on_off
 from Syphix.utils.formatters import time_to_seconds
-import glob
-import random
 import logging
 import aiohttp
-
-def cookie_txt_file():
-    folder_path = f"{os.getcwd()}/cookies"
-    filename = f"{os.getcwd()}/cookies/logs.csv"
-    txt_files = glob.glob(os.path.join(folder_path, '*.txt'))
-    if not txt_files:
-        raise FileNotFoundError("No .txt files found in the specified folder.")
-    cookie_txt_file = random.choice(txt_files)
-    with open(filename, 'a') as file:
-        file.write(f'Choosen File : {cookie_txt_file}\n')
-    return f"""cookies/{str(cookie_txt_file).split("/")[-1]}"""
 
 async def shell_cmd(cmd):
     proc = await asyncio.create_subprocess_shell(
@@ -53,22 +40,12 @@ class YouTubeAPI:
         match = re.search(pattern, link)
         return match.group(1) if match else None
 
-    async def _get_api_download_url(self, video_id: str, quality: str = "mp3") -> str | None:
-        endpoint = "/mp3" if quality == "mp3" else "/download"
-        params = f"?id={video_id}"
-        if quality != "mp3":
-            params += f"&format={quality}"
-        url = f"{self.api_base}{endpoint}{params}"
-        try:
-            timeout = aiohttp.ClientTimeout(total=30)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return data.get("downloadUrl")
-        except Exception as e:
-            logging.error(f"API download URL fetch error: {e}")
-        return None
+    def get_api_url(self, video_id: str, quality: str = "mp3") -> str:
+        """Construct the direct download URL from the API."""
+        if quality == "mp3":
+            return f"{self.api_base}/mp3?id={video_id}"
+        else:
+            return f"{self.api_base}/download?id={video_id}&format={quality}"
 
     async def _download_file_from_url(self, download_url: str, filepath: str, max_mb: int = 250) -> str | None:
         try:
@@ -76,6 +53,7 @@ class YouTubeAPI:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(download_url) as response:
                     if response.status != 200:
+                        logging.error(f"API download failed: {response.status}")
                         return None
                     content_length_str = response.headers.get("content-length")
                     if content_length_str:
@@ -87,6 +65,7 @@ class YouTubeAPI:
                     with open(filepath, "wb") as f:
                         async for chunk in response.content.iter_chunked(8192):
                             f.write(chunk)
+                    logging.info(f"Downloaded {filepath}")
                     return filepath
         except Exception as e:
             logging.error(f"File download error: {e}")
@@ -106,16 +85,16 @@ class YouTubeAPI:
                 "geo_bypass": True,
                 "nocheckcertificate": True,
                 "quiet": True,
-                "cookiefile": cookie_txt_file(),
                 "no_warnings": True,
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(link, download=False)
-                path = f"downloads/{info['id']}.{info['ext']}"
+                info = ydl.extract_info(link, download=True)
+                vid_id = info['id']
+                ext = info.get('ext', 'webm')
+                path = f"downloads/{vid_id}.{ext}"
                 if os.path.exists(path):
                     return path
-                ydl.download([link])
-                return path
+                return None
         return await loop.run_in_executor(None, dl)
 
     async def _fallback_video_download(self, link: str) -> str:
@@ -127,31 +106,22 @@ class YouTubeAPI:
                 "geo_bypass": True,
                 "nocheckcertificate": True,
                 "quiet": True,
-                "cookiefile": cookie_txt_file(),
                 "no_warnings": True,
+                "merge_output_format": "mp4",
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(link, download=False)
-                # After download, find the merged file (usually .mp4)
+                info = ydl.extract_info(link, download=True)
                 vid_id = info['id']
                 possible_paths = [f"downloads/{vid_id}.mp4", f"downloads/{vid_id}.mkv", f"downloads/{vid_id}.webm"]
                 for p in possible_paths:
                     if os.path.exists(p):
                         return p
-                # If not found, return the video file or raise
-                for ext in ['mp4', 'webm', 'mkv']:
-                    p = f"downloads/{vid_id}.{ext}"
-                    if os.path.exists(p):
-                        return p
                 return None
-            ydl.download([link])
-            return possible_paths[0] if os.path.exists(possible_paths[0]) else None
         return await loop.run_in_executor(None, dl)
 
     async def _fallback_direct_video_url(self, link: str) -> tuple[int, str]:
         proc = await asyncio.create_subprocess_exec(
             "yt-dlp",
-            "--cookies", cookie_txt_file(),
             "-g",
             "-f",
             "best[height<=?720][width<=?1280]",
@@ -166,10 +136,10 @@ class YouTubeAPI:
 
     async def _custom_song_audio_dl(self, link: str, title: str, format_id: str | None) -> str | None:
         if not format_id:
-            return None  # Use API instead
+            return None
         loop = asyncio.get_running_loop()
         def dl():
-            safe_title = re.sub(r'[\\/:*?"<>|]', '_', title).strip()[:100]
+            safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title)).strip()[:100]
             fpath = f"downloads/{safe_title}.%(ext)s"
             ydl_opts = {
                 "format": format_id,
@@ -178,7 +148,6 @@ class YouTubeAPI:
                 "nocheckcertificate": True,
                 "quiet": True,
                 "no_warnings": True,
-                "cookiefile": cookie_txt_file(),
                 "prefer_ffmpeg": True,
                 "postprocessors": [{
                     "key": "FFmpegExtractAudio",
@@ -188,8 +157,7 @@ class YouTubeAPI:
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([link])
-            # Find the mp3 file
-            safe_title_no_ext = re.sub(r'[\\/:*?"<>|]', '_', title).strip()[:100]
+            safe_title_no_ext = re.sub(r'[\\/:*?"<>|]', '_', str(title)).strip()[:100]
             mp3_path = f"downloads/{safe_title_no_ext}.mp3"
             if os.path.exists(mp3_path):
                 return mp3_path
@@ -198,26 +166,25 @@ class YouTubeAPI:
 
     async def _custom_song_video_dl(self, link: str, title: str, format_id: str | None) -> str | None:
         if not format_id:
-            return None  # Use API instead
+            return None
         loop = asyncio.get_running_loop()
         def dl():
-            safe_title = re.sub(r'[\\/:*?"<>|]', '_', title).strip()[:100]
-            fpath = f"downloads/{safe_title}"
+            safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title)).strip()[:100]
+            fpath = f"downloads/{safe_title}.%(ext)s"
             formats = f"{format_id}+140"
             ydl_opts = {
                 "format": formats,
-                "outtmpl": f"{fpath}.%(ext)s",
+                "outtmpl": fpath,
                 "geo_bypass": True,
                 "nocheckcertificate": True,
                 "quiet": True,
                 "no_warnings": True,
-                "cookiefile": cookie_txt_file(),
                 "prefer_ffmpeg": True,
                 "merge_output_format": "mp4",
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([link])
-            mp4_path = f"{fpath}.mp4"
+            mp4_path = f"downloads/{safe_title}.mp4"
             if os.path.exists(mp4_path):
                 return mp4_path
             return None
@@ -304,7 +271,6 @@ class YouTubeAPI:
             link = link.split("&")[0]
         proc = await asyncio.create_subprocess_exec(
             "yt-dlp",
-            "--cookies", cookie_txt_file(),
             "-g",
             "-f",
             "best[height<=?720][width<=?1280]",
@@ -323,9 +289,9 @@ class YouTubeAPI:
         if "&" in link:
             link = link.split("&")[0]
         playlist = await shell_cmd(
-            f"yt-dlp -i --get-id --flat-playlist --cookies {cookie_txt_file()} --playlist-end {limit} --skip-download {link}"
+            f"yt-dlp -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
         )
-        result = [id for id in playlist.split("\n") if id.strip()]
+        result = [id.strip() for id in playlist.split("\n") if id.strip()]
         return result
 
     async def track(self, link: str, videoid: Union[bool, str] = None):
@@ -355,7 +321,7 @@ class YouTubeAPI:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
-        ytdl_opts = {"quiet": True, "cookiefile": cookie_txt_file()}
+        ytdl_opts = {"quiet": True}
         ydl = yt_dlp.YoutubeDL(ytdl_opts)
         formats_available = []
         try:
@@ -375,7 +341,7 @@ class YouTubeAPI:
                                 "format_note": format_["format_note"],
                                 "yturl": link,
                             })
-                    except KeyError:
+                    except (KeyError, TypeError):
                         continue
         except Exception as e:
             logging.error(f"Formats extraction error: {e}")
@@ -425,13 +391,12 @@ class YouTubeAPI:
                 if path:
                     return path
             # API fallback
-            download_url = await self._get_api_download_url(video_id, "720")
-            if download_url:
-                safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title or video_id)).strip()[:100]
-                path = f"downloads/{safe_title}.mp4"
-                path = await self._download_file_from_url(download_url, path)
-                if path:
-                    return path
+            api_url = self.get_api_url(video_id, "720")
+            safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title or video_id)).strip()[:100]
+            path = f"downloads/{safe_title}.mp4"
+            path = await self._download_file_from_url(api_url, path)
+            if path:
+                return path
             # yt-dlp fallback
             return await self._fallback_video_download(link)
 
@@ -441,45 +406,44 @@ class YouTubeAPI:
                 if path:
                     return path
             # API fallback
-            download_url = await self._get_api_download_url(video_id, "mp3")
-            if download_url:
-                safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title or video_id)).strip()[:100]
-                path = f"downloads/{safe_title}.mp3"
-                path = await self._download_file_from_url(download_url, path)
-                if path:
-                    return path
+            api_url = self.get_api_url(video_id, "mp3")
+            safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title or video_id)).strip()[:100]
+            path = f"downloads/{safe_title}.mp3"
+            path = await self._download_file_from_url(api_url, path)
+            if path:
+                return path
             # yt-dlp fallback
             return await self._fallback_audio_download(link)
 
         if video:
-            download_url = await self._get_api_download_url(video_id, "720")
-            if download_url:
-                if await is_on_off(1):
-                    # Download to file
-                    path = f"downloads/{video_id}.mp4"
-                    path = await self._download_file_from_url(download_url, path)
-                    if path:
-                        return path, True
-                else:
-                    # Direct URL
-                    return download_url, False
-            # API failed, fallback
+            api_url = self.get_api_url(video_id, "720")
             if await is_on_off(1):
+                # Download to file (direct=True)
+                path = f"downloads/{video_id}.mp4"
+                path = await self._download_file_from_url(api_url, path)
+                if path:
+                    return path, True
+                # Fallback download
                 path = await self._fallback_video_download(link)
                 if path:
                     return path, True
             else:
-                status, url_or_err = await self._fallback_direct_video_url(link)
-                if status == 1:
-                    return url_or_err, False
+                # Direct URL (direct=False)
+                return api_url, False
+            # Fallback direct URL
+            status, url_or_err = await self._fallback_direct_video_url(link)
+            if status == 1:
+                return url_or_err, False
             return None
 
-        # Default: audio
-        download_url = await self._get_api_download_url(video_id, "mp3")
-        if download_url:
-            path = f"downloads/{video_id}.mp3"
-            path = await self._download_file_from_url(download_url, path)
-            if path:
-                return path, True
+        # Default: audio, download to file
+        api_url = self.get_api_url(video_id, "mp3")
+        path = f"downloads/{video_id}.mp3"
+        path = await self._download_file_from_url(api_url, path)
+        if path:
+            return path, True
         # Fallback
-        return await self._fallback_audio_download(link), True
+        path = await self._fallback_audio_download(link)
+        if path:
+            return path, True
+        return None
