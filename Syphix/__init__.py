@@ -1,3 +1,21 @@
+# ----------------- FIX FOR ASYNCIO + UVLOOP -----------------
+import asyncio
+
+# Try enabling uvloop if installed
+try:
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+except Exception:
+    pass
+
+# Make sure the main thread has an event loop
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+# ------------------------------------------------------------
+
+
 from Syphix.core.bot import AMBOT
 from Syphix.core.dir import dirr
 from Syphix.core.git import git
