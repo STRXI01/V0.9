@@ -34,32 +34,56 @@ class YouTubeAPI:
         self.listbase = "https://youtube.com/playlist?list="
         self.reg = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
         self.api_base = "https://honox-five.vercel.app"
+        self.max_size_mb = 250
 
     def extract_video_id(self, link: str) -> str | None:
         pattern = r"(?:v=|youtu\.be/|youtube\.com/(?:embed/|v/|watch\?v=|shorts/))([0-9A-Za-z_-]{11})"
         match = re.search(pattern, link)
         return match.group(1) if match else None
 
-    def get_api_url(self, video_id: str, quality: str = "mp3") -> str:
-        """Construct the direct download URL from the API."""
-        if quality == "mp3":
-            return f"{self.api_base}/mp3?id={video_id}"
-        else:
-            return f"{self.api_base}/download?id={video_id}&format={quality}"
+    async def _get_api_info(self, video_id: str, quality: str = "mp3") -> dict | None:
+        """Fetch JSON from API and return the response dict."""
+        endpoint = "/mp3" if quality == "mp3" else "/download"
+        params = f"?id={video_id}"
+        if quality != "mp3":
+            params += f"&format={quality}"
+        url = f"{self.api_base}{endpoint}{params}"
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        return await response.json()
+        except Exception as e:
+            logging.error(f"API info fetch error: {e}")
+        return None
 
-    async def _download_file_from_url(self, download_url: str, filepath: str, max_mb: int = 250) -> str | None:
+    async def _get_file_size_from_url(self, download_url: str) -> int | None:
+        """Get file size from HEAD request."""
+        try:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.head(download_url) as response:
+                    if response.status == 200:
+                        content_length = response.headers.get("content-length")
+                        return int(content_length) if content_length else None
+        except Exception as e:
+            logging.error(f"Size check error: {e}")
+        return None
+
+    async def _download_file_from_url(self, download_url: str, filepath: str) -> str | None:
         try:
             timeout = aiohttp.ClientTimeout(total=300)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(download_url) as response:
                     if response.status != 200:
-                        logging.error(f"API download failed: {response.status}")
+                        logging.error(f"Download failed: {response.status}")
                         return None
-                    content_length_str = response.headers.get("content-length")
-                    if content_length_str:
-                        content_length = int(content_length_str)
-                        if content_length > max_mb * 1024 * 1024:
-                            logging.warning(f"File too large ({content_length / (1024*1024):.1f} MB > {max_mb} MB)")
+                    content_length = response.headers.get("content-length")
+                    if content_length:
+                        size_bytes = int(content_length)
+                        if size_bytes > self.max_size_mb * 1024 * 1024:
+                            logging.warning(f"File too large ({size_bytes / (1024*1024):.1f} MB > {self.max_size_mb} MB)")
                             return None
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     with open(filepath, "wb") as f:
@@ -110,8 +134,8 @@ class YouTubeAPI:
                 "merge_output_format": "mp4",
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(link, download=True)
-                vid_id = info['id']
+                ydl.download([link])
+                vid_id = ydl.extract_info(link, download=False)['id']
                 possible_paths = [f"downloads/{vid_id}.mp4", f"downloads/{vid_id}.mkv", f"downloads/{vid_id}.webm"]
                 for p in possible_paths:
                     if os.path.exists(p):
@@ -383,20 +407,22 @@ class YouTubeAPI:
         if not video_id:
             return None
 
+        quality = "720" if video or songvideo else "mp3"
+
         # Priority: custom song with format_id -> yt-dlp custom
-        # else API
         if songvideo:
             if format_id:
                 path = await self._custom_song_video_dl(link, title, format_id)
                 if path:
                     return path
-            # API fallback
-            api_url = self.get_api_url(video_id, "720")
-            safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title or video_id)).strip()[:100]
-            path = f"downloads/{safe_title}.mp4"
-            path = await self._download_file_from_url(api_url, path)
-            if path:
-                return path
+            # API
+            api_info = await self._get_api_info(video_id, "1080" if format_id else "720")
+            if api_info and "downloadUrl" in api_info:
+                safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title or api_info.get("title", video_id))).strip()[:100]
+                path = f"downloads/{safe_title}.mp4"
+                path = await self._download_file_from_url(api_info["downloadUrl"], path)
+                if path:
+                    return path
             # yt-dlp fallback
             return await self._fallback_video_download(link)
 
@@ -405,45 +431,50 @@ class YouTubeAPI:
                 path = await self._custom_song_audio_dl(link, title, format_id)
                 if path:
                     return path
-            # API fallback
-            api_url = self.get_api_url(video_id, "mp3")
-            safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title or video_id)).strip()[:100]
-            path = f"downloads/{safe_title}.mp3"
-            path = await self._download_file_from_url(api_url, path)
-            if path:
-                return path
+            # API
+            api_info = await self._get_api_info(video_id, "mp3")
+            if api_info and "downloadUrl" in api_info:
+                safe_title = re.sub(r'[\\/:*?"<>|]', '_', str(title or api_info.get("title", video_id))).strip()[:100]
+                path = f"downloads/{safe_title}.mp3"
+                path = await self._download_file_from_url(api_info["downloadUrl"], path)
+                if path:
+                    return path
             # yt-dlp fallback
             return await self._fallback_audio_download(link)
 
         if video:
-            api_url = self.get_api_url(video_id, "720")
+            api_info = await self._get_api_info(video_id, "720")
+            if not api_info or "downloadUrl" not in api_info:
+                # Fallback to yt-dlp
+                if await is_on_off(1):
+                    path = await self._fallback_video_download(link)
+                    return path, True if path else None
+                else:
+                    status, url_or_err = await self._fallback_direct_video_url(link)
+                    return (url_or_err, False) if status == 1 else None
+            download_url = api_info["downloadUrl"]
             if await is_on_off(1):
-                # Download to file (direct=True)
+                # Download to file
                 path = f"downloads/{video_id}.mp4"
-                path = await self._download_file_from_url(api_url, path)
-                if path:
-                    return path, True
-                # Fallback download
-                path = await self._fallback_video_download(link)
-                if path:
-                    return path, True
+                path = await self._download_file_from_url(download_url, path)
+                return path, True if path else None
             else:
-                # Direct URL (direct=False)
-                return api_url, False
-            # Fallback direct URL
-            status, url_or_err = await self._fallback_direct_video_url(link)
-            if status == 1:
-                return url_or_err, False
-            return None
+                # Check size for direct URL
+                file_size = await self._get_file_size_from_url(download_url)
+                if file_size and file_size > self.max_size_mb * 1024 * 1024:
+                    # Too large, download instead
+                    path = f"downloads/{video_id}.mp4"
+                    path = await self._download_file_from_url(download_url, path)
+                    return path, True if path else None
+                return download_url, False
 
         # Default: audio, download to file
-        api_url = self.get_api_url(video_id, "mp3")
-        path = f"downloads/{video_id}.mp3"
-        path = await self._download_file_from_url(api_url, path)
-        if path:
-            return path, True
+        api_info = await self._get_api_info(video_id, "mp3")
+        if api_info and "downloadUrl" in api_info:
+            path = f"downloads/{video_id}.mp3"
+            path = await self._download_file_from_url(api_info["downloadUrl"], path)
+            if path:
+                return path, True
         # Fallback
         path = await self._fallback_audio_download(link)
-        if path:
-            return path, True
-        return None
+        return path, True if path else None
