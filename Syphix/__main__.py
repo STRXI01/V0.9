@@ -6,7 +6,7 @@ from pytgcalls.exceptions import NoActiveGroupCall
 
 import config
 from Syphix import LOGGER, app, userbot
-from Syphix.core.call import AMBOT
+from Syphix.core.call import Cipher
 from Syphix.misc import sudo
 from Syphix.plugins import ALL_MODULES
 from Syphix.utils.database import get_banned_users, get_gbanned
