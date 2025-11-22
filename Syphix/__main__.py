@@ -10,10 +10,20 @@ from Syphix.core.call import AMBOT
 from Syphix.misc import sudo
 from Syphix.plugins import ALL_MODULES
 from Syphix.utils.database import get_banned_users, get_gbanned
-from config import BANNED_USERS
+from Syphix.utils.cookies import fetch_and_store_cookies
+from config import COOKIE_URL, BANNED_USERS
 
 
 async def init():
+    
+    if COOKIE_URL:
+        try:
+            await fetch_and_store_cookies()
+        except Exception as e:
+            LOGGER("Syphix").warning(f"Cookie fetch failed: {e}")
+    else:
+        LOGGER("Syphix").info("COOKIE_URL is none, skipping cookies fetch...")
+
     if (
         not config.STRING1
         and not config.STRING2
@@ -21,9 +31,11 @@ async def init():
         and not config.STRING4
         and not config.STRING5
     ):
-        LOGGER(__name__).error("Assistant client variables not defined, exiting...")
+        LOGGER(__name__).error("Assistant client variables are not defined, exiting...")
         exit()
+
     await sudo()
+
     try:
         users = await get_gbanned()
         for user_id in users:
@@ -33,29 +45,33 @@ async def init():
             BANNED_USERS.add(user_id)
     except:
         pass
+
     await app.start()
     for all_module in ALL_MODULES:
         importlib.import_module("Syphix.plugins" + all_module)
     LOGGER("Syphix.plugins").info("Successfully Imported Modules...")
     await userbot.start()
-    await AMBOT.start()
+    await Cipher.start()
+
     try:
-        await AMBOT.stream_call("https://te.legra.ph/file/29f784eb49d230ab62e9e.mp4")
+        await Cipher.stream_call("https://te.legra.ph/file/29f784eb49d230ab62e9e.mp4")
     except NoActiveGroupCall:
         LOGGER("Syphix").error(
-            "Please turn on the videochat of your log group\channel.\n\nStopping Bot..."
+            "Please turn on the videochat of your log group/channel.\n\nStopping Bot..."
         )
         exit()
     except:
         pass
-    await AMBOT.decorators()
-    LOGGER("Syphix").info(
-        "\x41\x6E\x69\x65\x58\x45\x72\x69\x63\x61\x20\x4D\x75\x73\x69\x63\x20\x42\x6F\x74\x20\x53\x74\x61\x72\x74\x65\x64\x20\x53\x75\x63\x63\x65\x73\x73\x66\x75\x6C\x6C\x79\x2E\x5C\x6E\x5C\x6E\x44\x6F\x6E\x27\x74\x20\x66\x6F\x72\x67\x65\x74\x20\x74\x6F\x20\x4A\x6F\x69\x6E\x20\x40\x41\x4D\x42\x4F\x54\x59\x54"
-    )
+
+    await Cipher.decorators()
+
+    LOGGER("Syphix").info("modulation centralised")
+
     await idle()
+
     await app.stop()
     await userbot.stop()
-    LOGGER("Syphix").info("Stopping Syphix Bot...")
+    LOGGER("Syphix").info("Stopping Syphix Music Bot...")
 
 
 if __name__ == "__main__":
