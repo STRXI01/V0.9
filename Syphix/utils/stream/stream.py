@@ -6,12 +6,12 @@ from pyrogram.types import InlineKeyboardMarkup
 
 import config
 from Syphix import Carbon, YouTube, app
-from Syphix.core.call import AMBOT
+from Syphix.core.call import Cipher
 from Syphix.misc import db
 from Syphix.utils.database import add_active_video_chat, is_active_chat
 from Syphix.utils.exceptions import AssistantErr
 from Syphix.utils.inline import aq_markup, close_markup, stream_markup
-from Syphix.utils.pastebin import AMBOTBin
+from Syphix.utils.pastebin import CipherBin
 from Syphix.utils.stream.queue import put_queue, put_queue_index
 from Syphix.utils.thumbnails import gen_thumb
 
@@ -32,7 +32,7 @@ async def stream(
     if not result:
         return
     if forceplay:
-        await AMBOT.force_stop_stream(chat_id)
+        await Cipher.force_stop_stream(chat_id)
     if streamtype == "playlist":
         msg = f"{_['play_19']}\n\n"
         count = 0
@@ -80,14 +80,14 @@ async def stream(
                 except:
                     await app.send_message(
                 config.LOG_GROUP_ID,
-                f"ʜᴇʏ [ᴏᴡɴᴇʀ](tg://user?id={config.OWNER_ID}) ᴍᴀʏ ʙᴇ ᴄᴏᴏᴋɪᴇs ʜᴀs ʙᴇᴇɴ ᴅᴇᴀᴅ ᴘʟᴇᴀsᴇ ᴜᴘᴅᴀᴛᴇ ᴄᴏᴏᴋɪᴇ",
+                f"ʜᴇʏ [ᴏᴡɴᴇʀ](tg://user?id={config.OWNER_ID}) ᴍᴀʏ ʙᴇ ᴄᴏᴏᴋɪᴇs ʜᴀs ʙᴇᴇɴ ᴅᴇᴀᴅ ᴘʟᴇᴀsᴇ ᴜᴘᴅᴀᴛᴇ ᴄᴏᴏᴋɪᴇs",
             )
                     raise AssistantErr(_["play_14"])
                     await app.send_message(
                 config.OWNER_ID,
-                f"ʜᴇʏ [ᴏᴡɴᴇʀ](tg://user?id={config.OWNER_ID}) ᴍᴀʏ ʙᴇ ᴄᴏᴏᴋɪᴇs ʜᴀs ʙᴇᴇɴ ᴅᴇᴀᴅ ᴘʟᴇᴀsᴇ ᴜᴘᴅᴀᴛᴇ ᴄᴏᴏᴋɪᴇ",
+                f"ʜᴇʏ [ᴏᴡɴᴇʀ](tg://user?id={config.OWNER_ID}) ᴍᴀʏ ʙᴇ ᴄᴏᴏᴋɪᴇs ʜᴀs ʙᴇᴇɴ ᴅᴇᴀᴅ ᴘʟᴇᴀsᴇ ᴜᴘᴅᴀᴛᴇ ᴄᴏᴏᴋɪᴇs",
             )
-                await AMBOT.join_call(
+                await Cipher.join_call(
                     chat_id,
                     original_chat_id,
                     file_path,
@@ -124,7 +124,7 @@ async def stream(
         if count == 0:
             return
         else:
-            link = await AMBOTBin(msg)
+            link = await SyphixBin(msg)
             lines = msg.count("\n")
             if lines >= 17:
                 car = os.linesep.join(msg.split(os.linesep)[:17])
@@ -189,7 +189,7 @@ async def stream(
         else:
             if not forceplay:
                 db[chat_id] = []
-            await AMBOT.join_call(
+            await Cipher.join_call(
                 chat_id,
                 original_chat_id,
                 file_path,
@@ -249,7 +249,7 @@ async def stream(
         else:
             if not forceplay:
                 db[chat_id] = []
-            await AMBOT.join_call(chat_id, original_chat_id, file_path, video=None)
+            await Cipher.join_call(chat_id, original_chat_id, file_path, video=None)
             await put_queue(
                 chat_id,
                 original_chat_id,
@@ -301,7 +301,7 @@ async def stream(
         else:
             if not forceplay:
                 db[chat_id] = []
-            await AMBOT.join_call(chat_id, original_chat_id, file_path, video=status)
+            await Cipher.join_call(chat_id, original_chat_id, file_path, video=status)
             await put_queue(
                 chat_id,
                 original_chat_id,
@@ -357,7 +357,7 @@ async def stream(
             n, file_path = await YouTube.video(link)
             if n == 0:
                 raise AssistantErr(_["str_3"])
-            await AMBOT.join_call(
+            await Cipher.join_call(
                 chat_id,
                 original_chat_id,
                 file_path,
@@ -415,7 +415,7 @@ async def stream(
         else:
             if not forceplay:
                 db[chat_id] = []
-            await AMBOT.join_call(
+            await Cipher.join_call(
                 chat_id,
                 original_chat_id,
                 link,
