@@ -11,19 +11,18 @@ API_HASH = getenv("API_HASH", "4e984ea35f854762dcde906dce426c2d")
 BOT_PRIVACY = getenv("BOT_PRIVACY", "https://telegra.ph/Privacy-Policy-for-Syphix-10-06")
 BOT_TOKEN = getenv("BOT_TOKEN", "")
 
-API_URL = getenv("API_URL", 'https://api.thequickearn.xyz') #youtube song url
-VIDEO_API_URL = getenv("VIDEO_API_URL", 'https://api.video.thequickearn.xyz')
-API_KEY = getenv("API_KEY", None)
+API_URL = getenv("API_URL", "https://space.in")
+COOKIE_URL = getenv("COOKIE_URL")
 
 MONGO_DB_URI = getenv("MONGO_DB_URI", "")
 
 DURATION_LIMIT_MIN = int(getenv("DURATION_LIMIT", 600))
 
-LOG_GROUP_ID = int(getenv("LOG_GROUP_ID",-1001971806089))
+LOG_GROUP_ID = int(getenv("LOG_GROUP_ID",-1002139499282))
 
-OWNER_ID = int(getenv("OWNER_ID", 8106551502))
+OWNER_ID = int(getenv("OWNER_ID", 8338247560))
 
-OWNER = int(getenv("OWNER", 8106551502))
+OWNER = int(getenv("OWNER", 8338247560))
 
 HEROKU_APP_NAME = getenv("HEROKU_APP_NAME")
 
@@ -31,14 +30,14 @@ HEROKU_API_KEY = getenv("HEROKU_API_KEY","HK543fklqxgt66hvxf")
 
 UPSTREAM_REPO = getenv(
     "UPSTREAM_REPO",
-    "https://github.com/riteshxcoder/Ambot",
+    "https://github.com/STRIX01/V0.9",
 )
 UPSTREAM_BRANCH = getenv("UPSTREAM_BRANCH", "main")
 GIT_TOKEN = getenv(
     "GIT_TOKEN", None
 )  
-SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/aashikteam")
-SUPPORT_GROUP = getenv("SUPPORT_GROUP", "https://t.me/teamaashik")
+SUPPORT_CHANNEL = getenv("SUPPORT_CHANNEL", "https://t.me/Syphixlabs")
+SUPPORT_GROUP = getenv("SUPPORT_GROUP", "https://t.me/syphixhub")
 AUTO_LEAVING_ASSISTANT = bool(getenv("AUTO_LEAVING_ASSISTANT", True))
 SPOTIFY_CLIENT_ID = getenv("SPOTIFY_CLIENT_ID", "2a230af10e0a40638dc77c1febb47170")
 SPOTIFY_CLIENT_SECRET = getenv("SPOTIFY_CLIENT_SECRET", "7f92897a59464ddbbf00f06cd6bda7fc")
@@ -53,8 +52,7 @@ STRING4 = getenv("STRING_SESSION4", None)
 STRING5 = getenv("STRING_SESSION5", None)
 
 
-BANNED_USERS = filters.user()
-_X9Q7K3 = 7647448850
+BANNED_USERS = {}
 adminlist = {}
 lyrical = {}
 votemode = {}
