@@ -11,6 +11,10 @@ def dirr():
             os.remove(file)
         elif file.endswith(".png"):
             os.remove(file)
+        elif file.endswith(".session"):
+            os.remove(file)
+        elif file == "__pycache__":
+            os.system("rm -rf __pycache__")
 
     if "downloads" not in os.listdir():
         os.mkdir("downloads")
